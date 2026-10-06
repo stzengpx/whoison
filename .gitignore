@@ -1,0 +1,22 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Editors / IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Build / test artifacts
+/dist/
+/build/
+*.log
+*.tmp
+
+# Local env / secrets
+.env
+.env.*

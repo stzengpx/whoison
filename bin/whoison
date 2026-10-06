@@ -1,0 +1,64 @@
+#!/bin/bash
+# whoison — show who is ACTUALLY using this Mac right now.
+#
+# `who` / `w` / `last` read utmpx, which keeps stale entries after
+# force-logouts or Fast User Switching. whoison checks live process state instead.
+set -u
+
+VERSION="0.1.0"
+
+usage() {
+  cat <<EOF
+Usage: whoison [-h|--help] [-v|--version]
+
+Shows who is really on this Mac:
+  - console user (in front of the screen)
+  - GUI-logged-in users (each has a live loginwindow process)
+  - active SSH sessions
+  - users with only leftover background processes (not logged in)
+EOF
+}
+
+case "${1:-}" in
+  -h|--help) usage; exit 0 ;;
+  -v|--version) echo "whoison $VERSION"; exit 0 ;;
+  "") ;;
+  *) usage >&2; exit 2 ;;
+esac
+
+console_user() { stat -f '%Su' /dev/console; }
+
+gui_users() {
+  ps -axo user=,comm= | awk '/\/loginwindow$/{print $1}' | sort -u
+}
+
+ssh_sessions() {
+  ps -axo user=,command= | awk '/sshd-session: [a-z_][a-z0-9_.-]*@/{print $3}' | sort -u
+}
+
+local_users() {
+  dscl . list /Users UniqueID | awk '$2>=500{print $1}'
+}
+
+echo "🖥  螢幕前：$(console_user)"
+
+echo "👥 已登入（GUI）："
+gui=$(gui_users)
+if [ -n "$gui" ]; then echo "$gui" | sed 's/^/   - /'; else echo "   （無）"; fi
+
+echo "🔌 SSH 連線："
+ssh=$(ssh_sessions)
+if [ -n "$ssh" ]; then echo "$ssh" | sed 's/^/   - /'; else echo "   （無）"; fi
+
+echo "⚙️  只剩背景程式（未登入）："
+found=0
+for u in $(local_users); do
+  echo "$gui" | grep -qx "$u" && continue
+  n=$(ps -U "$u" -o pid= 2>/dev/null | wc -l | tr -d ' ')
+  if [ "$n" -gt 0 ]; then
+    echo "   - ${u}（${n} 個程式）"
+    found=1
+  fi
+done
+[ "$found" -eq 0 ] && echo "   （無）"
+exit 0
